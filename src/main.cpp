@@ -4,7 +4,7 @@
 #include <ESP8266WiFi.h>
 
 WiFiUDP udp_server;
-IPAddress ip_addr(192,168,145,1);
+IPAddress ip_addr(192,168,145,1);  //server ip address
 IPAddress gateway(192,168,145,1);
 IPAddress subnet(255,255,255,0);
 const char * ssid = "zavod";
@@ -106,7 +106,7 @@ void loop()
     strcat(replyPacket, number_str);
     udp_server.write(replyPacket);
     udp_server.endPacket();
-    Serial.println("replied ...");
+    Serial.println("Replied ...");
     Serial.println(millis());
 
     send_broadcast();
