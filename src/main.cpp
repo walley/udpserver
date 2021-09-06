@@ -62,7 +62,7 @@ void setup()
   Serial.println();
   create_wifi();
 
-  delay(1000);
+  delay(900);
   udp_server.begin(server_udp_port);
   Serial.printf("UDP port %d\r\n", server_udp_port);
 
