@@ -15,11 +15,22 @@ char replyPacket[50];  // a reply string to send back
 int stations = 0;
 bool result;
 int packet_number;
+IPAddress remote_ip;
 
 void packet_info(int size)
 {
   Serial.printf("Received %d bytes ", size);
   Serial.printf("from %s:", udp_server.remoteIP().toString().c_str());
+  Serial.print(udp_server.remotePort());
+  Serial.println();
+}
+
+void packet_host_info()
+{
+  Serial.print("UDP remote ip:");
+  Serial.print(udp_server.remoteIP());
+  Serial.println();
+  Serial.print("UDP remote port:");
   Serial.print(udp_server.remotePort());
   Serial.println();
 }
@@ -44,18 +55,6 @@ void wifi_info()
   Serial.println(WiFi.softAPIP());
 }
 
-void packet_info(char * pckt)
-{
-  Serial.printf("UDP packet contents: %s", pckt);
-  Serial.println();
-  Serial.print("UDP remote ip:");
-  Serial.print(udp_server.remoteIP());
-  Serial.println();
-  Serial.print("UDP remote port:");
-  Serial.print(udp_server.remotePort());
-  Serial.println();
-}
-
 void setup()
 {
   Serial.begin(9600);
@@ -68,6 +67,11 @@ void setup()
 
   wifi_info();
 }
+
+void start_race()
+{
+}
+
 
 void send_broadcast()
 {
@@ -88,8 +92,12 @@ void loop()
   int packetSize = udp_server.parsePacket();
 
   if (packetSize) {
+    packet_host_info();
+
+    remote_ip = udp_server.remoteIP();
+    String remote_ip_s = remote_ip.toString();
+
     Serial.println(millis());
-    packet_info(packetSize);
 
     int len = udp_server.read(incomingPacket, 255);
 
@@ -97,9 +105,10 @@ void loop()
       incomingPacket[len] = 0;
     }
 
-    packet_info(incomingPacket);
-
+    String guest_number = remote_ip_s.substring(remote_ip_s.lastIndexOf('.'),3);
+    Serial.println(guest_number);
     udp_server.beginPacket(udp_server.remoteIP(), 12345);
+
 
     itoa(packet_number++, number_str, 10);
     strcpy(replyPacket, "Reply ");
