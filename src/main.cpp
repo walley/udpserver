@@ -3,6 +3,8 @@
 #include <WiFiUdp.h>
 #include <ESP8266WiFi.h>
 
+#define BUTTON_1 12
+
 WiFiUDP udp_server;
 IPAddress ip_addr(192,168,145,1);  //server ip address
 IPAddress gateway(192,168,145,1);
@@ -55,10 +57,16 @@ void wifi_info()
   Serial.println(WiFi.softAPIP());
 }
 
+void initialize_pins()
+{
+  pinMode(12, INPUT_PULLUP);  //D6
+}
+
 void setup()
 {
   Serial.begin(9600);
   Serial.println();
+  initialize_pins();
   create_wifi();
 
   delay(900);
@@ -83,6 +91,13 @@ void send_broadcast()
 
 void loop()
 {
+
+  int switch_status = digitalRead(BUTTON_1);
+
+  if (!switch_status) {
+    Serial.println("switch");
+  }
+
   if (stations != WiFi.softAPgetStationNum()) {
     Serial.print("connected clients change:");
     Serial.println(WiFi.softAPgetStationNum());
@@ -105,7 +120,10 @@ void loop()
       incomingPacket[len] = 0;
     }
 
-    String guest_number = remote_ip_s.substring(remote_ip_s.lastIndexOf('.'),3);
+    Serial.println(incomingPacket);
+    Serial.println(remote_ip_s);
+    String guest_number = remote_ip_s.substring(remote_ip_s.lastIndexOf('.'), 3);
+    Serial.print("guest #");
     Serial.println(guest_number);
     udp_server.beginPacket(udp_server.remoteIP(), 12345);
 
