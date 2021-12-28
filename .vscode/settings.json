@@ -1,3 +1,6 @@
 {
-  "liveServer.settings.CustomBrowser": "chrome"
+  "liveServer.settings.CustomBrowser": "chrome",
+  "files.associations": {
+    "ranges": "cpp"
+  }
 }

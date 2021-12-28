@@ -60,6 +60,22 @@ void wifi_info()
 void initialize_pins()
 {
   pinMode(12, INPUT_PULLUP);  //D6
+  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
+  pinMode(2, OUTPUT);     // Initialize GPIO2 pin as an output
+}
+
+
+void led_blink()
+{
+  digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on by making the voltage LOW
+  delay(100);                      // Wait for a second
+  digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+  delay(200);
+  yield();
+  digitalWrite(2, LOW);  // Turn the LED on by making the voltage LOW
+  delay(100);            // Wait for a second
+  digitalWrite(2, HIGH);  // Turn the LED off by making the voltage HIGH
+  delay(200);            // Wait for two seconds
 }
 
 void setup()
@@ -81,16 +97,71 @@ void start_race()
 }
 
 
+String ip_to_String(IPAddress ip)
+{
+  String s="";
+
+  for (int i=0; i<4; i++)
+    s += i  ? "." + String(ip[i]) : String(ip[i]);
+
+  return s;
+}
+
+void list_clients()
+{
+  unsigned char softap_stations_cnt;
+  struct station_info *stat_info;
+  struct ip4_addr *ip_address;
+  uint32 uintaddress;
+
+  Serial.println("info start");
+  softap_stations_cnt = wifi_softap_get_station_num();
+  Serial.println(softap_stations_cnt);
+
+  /*  stat_info = wifi_softap_get_station_info();
+  while (stat_info != NULL) {
+      ip_address = &stat_info->ip;
+      Serial.println(ip4addr_ntoa(ip_address));
+      stat_info = STAILQ_NEXT(stat_info, next);
+    }
+
+  char station_mac[18] = {0}; sprintf(station_mac, "%02X:%02X:%02X:%02X:%02X:%02X", MAC2STR(station_list->bssid));
+  String station_ip = IPAddress((&station_list->ip)->addr).toString();
+  */
+
+  for (stat_info = wifi_softap_get_station_info();
+       stat_info != NULL;
+       stat_info = STAILQ_NEXT(stat_info, next)) {
+    ip_address = &stat_info->ip;
+    Serial.print("x:");
+    Serial.println(ip4addr_ntoa(ip_address));
+  }
+
+
+  Serial.println("info end");
+}
+
+void send_reply_packet()
+{
+  udp_server.beginPacket(udp_server.remoteIP(), 12345);
+  itoa(packet_number++, number_str, 10);
+  strcpy(replyPacket, "Reply ");
+  strcat(replyPacket, number_str);
+  udp_server.write(replyPacket);
+  udp_server.endPacket();
+}
+
 void send_broadcast()
 {
   udp_server.beginPacket("192.168.145.255", 12345);
   udp_server.write("start");
   udp_server.endPacket();
-  Serial.println("broadcast sent ...");
+//  Serial.println("broadcast sent ...");
 }
 
 void loop()
 {
+  led_blink();
 
   int switch_status = digitalRead(BUTTON_1);
 
@@ -102,6 +173,8 @@ void loop()
     Serial.print("connected clients change:");
     Serial.println(WiFi.softAPgetStationNum());
     stations = WiFi.softAPgetStationNum();
+
+    list_clients();
   }
 
   int packetSize = udp_server.parsePacket();
@@ -122,20 +195,16 @@ void loop()
 
     Serial.println(incomingPacket);
     Serial.println(remote_ip_s);
-    String guest_number = remote_ip_s.substring(remote_ip_s.lastIndexOf('.'), 3);
+    int whereisdot = remote_ip_s.lastIndexOf('.');
+    String guest_number = remote_ip_s.substring(whereisdot + 1, whereisdot + 4);
     Serial.print("guest #");
     Serial.println(guest_number);
-    udp_server.beginPacket(udp_server.remoteIP(), 12345);
 
-
-    itoa(packet_number++, number_str, 10);
-    strcpy(replyPacket, "Reply ");
-    strcat(replyPacket, number_str);
-    udp_server.write(replyPacket);
-    udp_server.endPacket();
-    Serial.println("Replied ...");
-    Serial.println(millis());
+    send_reply_packet();
+    //    Serial.println(millis());
 
     send_broadcast();
+
+    list_clients();
   }
 }
