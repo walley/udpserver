@@ -18,6 +18,29 @@ int stations = 0;
 bool result;
 int packet_number;
 IPAddress remote_ip;
+String race_state;
+int switch_status;
+int switch_status_last;
+int timer;
+int timer_on;
+unsigned long racetime;
+
+void millis_to_time(unsigned long m)
+{
+  unsigned long runMillis = m;
+  unsigned long allSeconds = m / 1000;
+  int rest = m % 1000;
+  int runHours = allSeconds / 3600;
+  int secsRemaining = allSeconds % 3600;
+  int runMinutes = secsRemaining / 60;
+  int runSeconds = secsRemaining % 60;
+
+  char buf[24];
+  sprintf(buf,"%02d:%02d:%02d.%03d",runHours,runMinutes,runSeconds,rest);
+  Serial.println(buf);
+  Serial.println(runMillis);
+  Serial.println(strlen(buf));
+}
 
 void packet_info(int size)
 {
@@ -67,7 +90,8 @@ void initialize_pins()
 
 void led_blink()
 {
-  digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on by making the voltage LOW
+  return;
+  digitalWrite(LED_BUILTIN, LOW);  // Turn the LED on by making the voltage LOW
   delay(100);                      // Wait for a second
   digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
   delay(200);
@@ -77,25 +101,6 @@ void led_blink()
   digitalWrite(2, HIGH);  // Turn the LED off by making the voltage HIGH
   delay(200);            // Wait for two seconds
 }
-
-void setup()
-{
-  Serial.begin(9600);
-  Serial.println();
-  initialize_pins();
-  create_wifi();
-
-  delay(900);
-  udp_server.begin(server_udp_port);
-  Serial.printf("UDP port %d\r\n", server_udp_port);
-
-  wifi_info();
-}
-
-void start_race()
-{
-}
-
 
 String ip_to_String(IPAddress ip)
 {
@@ -151,22 +156,81 @@ void send_reply_packet()
   udp_server.endPacket();
 }
 
-void send_broadcast()
+void send_broadcast(char * msg)
 {
   udp_server.beginPacket("192.168.145.255", 12345);
-  udp_server.write("start");
+  udp_server.write(msg);
   udp_server.endPacket();
 //  Serial.println("broadcast sent ...");
+}
+
+void initialize_timer()
+{
+  timer_on = 1;
+  racetime = millis();
+}
+
+void start_race()
+{
+  list_clients();
+  send_broadcast("start");
+  race_state = "start";
+  Serial.println("race started");
+  initialize_timer();
+}
+
+void abort_race()
+{
+  list_clients();
+  send_broadcast("abort");
+  race_state = "stop";
+  timer_on = 0;
+}
+
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println();
+  initialize_pins();
+  create_wifi();
+
+  delay(900);
+  udp_server.begin(server_udp_port);
+  Serial.printf("UDP port %d\r\n", server_udp_port);
+
+  wifi_info();
+  race_state = "stop";
+  switch_status = 0;
+  switch_status = 0;
+  int timer = 0;
+  int timer_on = 0;
 }
 
 void loop()
 {
   led_blink();
 
-  int switch_status = digitalRead(BUTTON_1);
+  switch_status = digitalRead(BUTTON_1);
 
   if (!switch_status) {
-    Serial.println("switch");
+    Serial.println("switch pressed");
+  }
+
+  if (switch_status != switch_status_last) {
+    if (switch_status == HIGH && switch_status_last == LOW) {
+      Serial.println("switch press end");
+      start_race();
+    }
+
+    if (switch_status == 0 && switch_status_last == 1) {
+      Serial.println("switch press start");
+    }
+  }
+
+  switch_status_last = switch_status;
+
+  if (timer_on) {
+    millis_to_time(millis() - racetime);
   }
 
   if (stations != WiFi.softAPgetStationNum()) {
@@ -202,9 +266,7 @@ void loop()
 
     send_reply_packet();
     //    Serial.println(millis());
-
-    send_broadcast();
-
+    send_broadcast("start");
     list_clients();
   }
 }
