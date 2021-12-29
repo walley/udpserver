@@ -201,9 +201,8 @@ void setup()
   wifi_info();
   race_state = "stop";
   switch_status = 0;
-  switch_status = 0;
-  int timer = 0;
-  int timer_on = 0;
+  timer = 0;
+  timer_on = 0;
 }
 
 void loop()
