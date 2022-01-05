@@ -3,7 +3,13 @@
 #include <WiFiUdp.h>
 #include <ESP8266WiFi.h>
 
+#include <LiquidCrystal_PCF8574.h>
+#include <Wire.h>
+
 #define BUTTON_1 12
+
+#define RACE_STARTED 1
+#define RACE_ENDED 0
 
 WiFiUDP udp_server;
 IPAddress ip_addr(192,168,145,1);  //server ip address
@@ -18,14 +24,16 @@ int stations = 0;
 bool result;
 int packet_number;
 IPAddress remote_ip;
-String race_state;
+int race_state;
 int switch_status;
 int switch_status_last;
 int timer;
 int timer_on;
 unsigned long racetime;
+char * time_display;
+LiquidCrystal_PCF8574 lcd(0x27);
 
-void millis_to_time(unsigned long m)
+char * millis_to_time(unsigned long m)
 {
   unsigned long runMillis = m;
   unsigned long allSeconds = m / 1000;
@@ -35,11 +43,11 @@ void millis_to_time(unsigned long m)
   int runMinutes = secsRemaining / 60;
   int runSeconds = secsRemaining % 60;
 
-  char buf[24];
-  sprintf(buf,"%02d:%02d:%02d.%03d",runHours,runMinutes,runSeconds,rest);
-  Serial.println(buf);
-  Serial.println(runMillis);
-  Serial.println(strlen(buf));
+  char * buf;
+  buf = (char *) malloc(24);
+  sprintf(buf,"%02d:%02d:%02d.%03d", runHours, runMinutes, runSeconds, rest);
+
+  return buf;
 }
 
 void packet_info(int size)
@@ -174,23 +182,49 @@ void start_race()
 {
   list_clients();
   send_broadcast("start");
-  race_state = "start";
+  race_state = RACE_STARTED;
   Serial.println("race started");
   initialize_timer();
+  lcd.setCursor(0,2);
+  lcd.print("race started !");
 }
 
 void abort_race()
 {
   list_clients();
   send_broadcast("abort");
-  race_state = "stop";
+  race_state = RACE_ENDED;
   timer_on = 0;
+  lcd.setCursor(0,2);
+  lcd.print("race ended   !");
+}
+
+void initialize_lcd()
+{
+  Wire.begin();
+  Wire.beginTransmission(0x27);
+  int error = Wire.endTransmission();
+  Serial.print("Error: ");
+  Serial.print(error);
+
+  if (error) {
+    Serial.println(": LCD not found.");
+  }
+
+  Serial.println(": LCD found.");
+  lcd.begin(20, 4); // initialize the lcd
+  lcd.setBacklight(250);
+  lcd.home();
+  lcd.clear();
 }
 
 void setup()
 {
   Serial.begin(9600);
   Serial.println();
+  Serial.println("UDPSERVER 0.0");
+
+  initialize_lcd();
   initialize_pins();
   create_wifi();
 
@@ -199,7 +233,7 @@ void setup()
   Serial.printf("UDP port %d\r\n", server_udp_port);
 
   wifi_info();
-  race_state = "stop";
+  race_state = 0;
   switch_status = 0;
   timer = 0;
   timer_on = 0;
@@ -207,29 +241,53 @@ void setup()
 
 void loop()
 {
+  char * time_display;
+
+  lcd.setCursor(0, 0);
+  lcd.print("*** first line.");
+  lcd.setCursor(0, 1);
+  lcd.print("*** second line.");
+
   led_blink();
 
   switch_status = digitalRead(BUTTON_1);
 
   if (!switch_status) {
     Serial.println("switch pressed");
+    lcd.setCursor(19,0);
+    lcd.print("X");
+  } else {
+    lcd.setCursor(19,0);
+    lcd.print(".");
   }
 
   if (switch_status != switch_status_last) {
     if (switch_status == HIGH && switch_status_last == LOW) {
       Serial.println("switch press end");
-      start_race();
+
+      if (!race_state) {
+        start_race();
+      } else {
+        abort_race();
+      }
     }
 
     if (switch_status == 0 && switch_status_last == 1) {
       Serial.println("switch press start");
     }
+
   }
 
   switch_status_last = switch_status;
 
+  lcd.setCursor(0,3);
+
   if (timer_on) {
-    millis_to_time(millis() - racetime);
+    time_display = millis_to_time(millis() - racetime);
+    lcd.print(time_display);
+    free(time_display);
+  } else {
+    lcd.print("00:00:00.000");
   }
 
   if (stations != WiFi.softAPgetStationNum()) {
@@ -248,7 +306,7 @@ void loop()
     remote_ip = udp_server.remoteIP();
     String remote_ip_s = remote_ip.toString();
 
-    Serial.println(millis());
+    //Serial.println(millis());
 
     int len = udp_server.read(incomingPacket, 255);
 
@@ -269,3 +327,4 @@ void loop()
     list_clients();
   }
 }
+
