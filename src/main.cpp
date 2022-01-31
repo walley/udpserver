@@ -31,6 +31,10 @@ int switch_status_last;
 int timer;
 int timer_on;
 unsigned long racetime;
+unsigned long result_left;
+unsigned long result_right;
+int left_end;
+int right_end;
 char * time_display;
 LiquidCrystal_PCF8574 lcd(0x27);
 
@@ -207,8 +211,8 @@ void race_start()
   race_state = RACE_STARTED;
   Serial.println("race started");
   initialize_timer();
-  lcd.setCursor(0,2);
-  lcd.print("race started !");
+  lcd_race_state("started");
+
 }
 
 void race_end()
@@ -217,8 +221,7 @@ void race_end()
   send_broadcast("end");
   race_state = RACE_ENDED;
   timer_on = 0;
-  lcd.setCursor(0,2);
-  lcd.print("race ended   !");
+  lcd_race_state("ended");
 }
 
 void race_abort()
@@ -249,12 +252,28 @@ void initialize_lcd()
   lcd.clear();
 }
 
-void lcd_lanes()
+void lcd_lanes(int lane, char * msg)
 {
-  lcd.setCursor(0, 0);
-  lcd.print("*** first lane.");
-  lcd.setCursor(0, 1);
-  lcd.print("*** second lane.");
+  switch (lane) {
+
+    case 0:
+      lcd.setCursor(0, 0);
+      lcd.print("*** first lane.");
+      lcd.setCursor(0, 1);
+      lcd.print("*** second lane.");
+      break;
+
+    case 1: //left
+      lcd.setCursor(0, 0);
+      lcd.print(msg);
+      break;
+
+    case 2: //right
+      lcd.setCursor(0, 1);
+      lcd.print(msg);
+      break;
+  }
+
 }
 
 /****************************/
@@ -279,8 +298,9 @@ void setup()
   switch_status = 0;
   timer = 0;
   timer_on = 0;
-  lcd_lanes();
-
+  lcd_lanes(0,"");
+  left_end = 0;
+  right_end = 0;
 }
 
 void loop()
@@ -298,10 +318,27 @@ void loop()
 
 //handle abortion
   if (race_state == RACE_ABORTED) {
-    race_state == RACE_IDLE;
+    race_state = RACE_IDLE;
 //do something
   }
 
+  switch (race_state) {
+    case RACE_IDLE:
+      lcd_race_state("idle");
+      break;
+
+    case RACE_ABORTED:
+      lcd_race_state("aborted");
+      break;
+
+    case RACE_STARTED:
+      lcd_race_state("started");
+      break;
+
+    case RACE_ENDED:
+      lcd_race_state("ended");
+      break;
+  }
 
   switch_status = digitalRead(BUTTON_1);
 
@@ -392,7 +429,24 @@ void loop()
 
     if (incoming_packet[1] == '1') {
       //race end
-      race_end();
+      if (lane == 1) {
+        result_left = millis() - racetime;
+        time_display = millis_to_time(result_left);
+        lcd_lanes(1, time_display);
+        free(time_display);
+        left_end = 1;
+      } else if (lane == 2) {
+        result_right = millis() - racetime;
+        time_display = millis_to_time(result_left);
+        lcd_lanes(2, time_display);
+        free(time_display);
+        right_end = 1;
+      }
+
+      if (left_end && right_end) {
+        race_end();
+      }
+
     } else {
       //something else
     }
