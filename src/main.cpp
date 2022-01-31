@@ -1,23 +1,24 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include <ESP8266WiFi.h>
 
 #include <LiquidCrystal_PCF8574.h>
 #include <Wire.h>
 
 #define BUTTON_1 12
 
-#define RACE_STARTED 1
 #define RACE_ENDED 0
+#define RACE_STARTED 1
+#define RACE_ABORTED 2
+#define RACE_IDLE 3
 
 WiFiUDP udp_server;
-IPAddress ip_addr(192,168,145,1);  //server ip address
-IPAddress gateway(192,168,145,1);
-IPAddress subnet(255,255,255,0);
+IPAddress *ip_addr;
+IPAddress *gateway;
+IPAddress *subnet;
 const char * ssid = "zavod";
 unsigned int server_udp_port = 4210;  // local port to listen on
-char incomingPacket[255];  // buffer for incoming packets
+char incoming_packet[255];  // buffer for incoming packets
 char number_str[255];
 char replyPacket[50];  // a reply string to send back
 int stations = 0;
@@ -32,6 +33,14 @@ int timer_on;
 unsigned long racetime;
 char * time_display;
 LiquidCrystal_PCF8574 lcd(0x27);
+
+void lcd_race_state(String msg)
+{
+  lcd.setCursor(0,2);
+  lcd.print("race           !");
+  lcd.setCursor(5,2);
+  lcd.print(msg);
+}
 
 char * millis_to_time(unsigned long m)
 {
@@ -48,6 +57,19 @@ char * millis_to_time(unsigned long m)
   sprintf(buf,"%02d:%02d:%02d.%03d", runHours, runMinutes, runSeconds, rest);
 
   return buf;
+}
+
+int get_comm_channel()
+{
+  return 145;
+}
+
+void set_ipv4()
+{
+  int x = get_comm_channel();
+  ip_addr = new IPAddress(192,168,x,1);  //server ip address
+  gateway = new IPAddress(192,168,x,1);
+  subnet = new IPAddress(255,255,255,0);
 }
 
 void packet_info(int size)
@@ -71,7 +93,7 @@ void packet_host_info()
 void create_wifi()
 {
   Serial.print("Setting soft-AP ... ");
-  WiFi.softAPConfig(ip_addr, gateway, subnet);
+  WiFi.softAPConfig(*ip_addr, *gateway, *subnet);
   result = WiFi.softAP("zavod", "xxxxxxxxx");
 
   if (result == true) {
@@ -178,7 +200,7 @@ void initialize_timer()
   racetime = millis();
 }
 
-void start_race()
+void race_start()
 {
   list_clients();
   send_broadcast("start");
@@ -189,14 +211,23 @@ void start_race()
   lcd.print("race started !");
 }
 
-void abort_race()
+void race_end()
 {
   list_clients();
-  send_broadcast("abort");
+  send_broadcast("end");
   race_state = RACE_ENDED;
   timer_on = 0;
   lcd.setCursor(0,2);
   lcd.print("race ended   !");
+}
+
+void race_abort()
+{
+  list_clients();
+  send_broadcast("abort");
+  race_state = RACE_ABORTED;
+  timer_on = 0;
+  lcd_race_state("aborted");
 }
 
 void initialize_lcd()
@@ -218,12 +249,23 @@ void initialize_lcd()
   lcd.clear();
 }
 
+void lcd_lanes()
+{
+  lcd.setCursor(0, 0);
+  lcd.print("*** first lane.");
+  lcd.setCursor(0, 1);
+  lcd.print("*** second lane.");
+}
+
+/****************************/
+
 void setup()
 {
   Serial.begin(9600);
   Serial.println();
   Serial.println("UDPSERVER 0.0");
 
+  set_ipv4();
   initialize_lcd();
   initialize_pins();
   create_wifi();
@@ -233,22 +275,33 @@ void setup()
   Serial.printf("UDP port %d\r\n", server_udp_port);
 
   wifi_info();
-  race_state = 0;
+  race_state = RACE_IDLE;
   switch_status = 0;
   timer = 0;
   timer_on = 0;
+  lcd_lanes();
+
 }
 
 void loop()
 {
+  int lane;     //1 left, 2 right, 0 none
   char * time_display;
-
-  lcd.setCursor(0, 0);
-  lcd.print("*** first line.");
-  lcd.setCursor(0, 1);
-  lcd.print("*** second line.");
+  lcd.setCursor(19,1);
+  lcd.print(".");
 
   led_blink();
+
+  if (race_state == RACE_IDLE) {
+    lcd_race_state("idle");
+  }
+
+//handle abortion
+  if (race_state == RACE_ABORTED) {
+    race_state == RACE_IDLE;
+//do something
+  }
+
 
   switch_status = digitalRead(BUTTON_1);
 
@@ -265,12 +318,13 @@ void loop()
     if (switch_status == HIGH && switch_status_last == LOW) {
       Serial.println("switch press end");
 
-      if (!race_state) {
-        start_race();
-      } else {
-        abort_race();
+      if (race_state == RACE_IDLE) {
+        race_start();
+      } else if (race_state == RACE_STARTED) {
+        race_abort();  //emergency stop
       }
     }
+
 
     if (switch_status == 0 && switch_status_last == 1) {
       Serial.println("switch press start");
@@ -301,6 +355,9 @@ void loop()
   int packetSize = udp_server.parsePacket();
 
   if (packetSize) {
+    lcd.setCursor(19,1);
+    lcd.print("#");
+
     packet_host_info();
 
     remote_ip = udp_server.remoteIP();
@@ -308,23 +365,40 @@ void loop()
 
     //Serial.println(millis());
 
-    int len = udp_server.read(incomingPacket, 255);
+    int len = udp_server.read(incoming_packet, 255);
 
     if (len > 0) {
-      incomingPacket[len] = 0;
+      incoming_packet[len] = 0;
     }
 
-    Serial.println(incomingPacket);
+    Serial.println(incoming_packet);
     Serial.println(remote_ip_s);
     int whereisdot = remote_ip_s.lastIndexOf('.');
     String guest_number = remote_ip_s.substring(whereisdot + 1, whereisdot + 4);
     Serial.print("guest #");
     Serial.println(guest_number);
 
+//parse packet
+//which lane side
+    if (incoming_packet[0] == '1') {
+      lane = 1;
+    } else if (incoming_packet[0] == '0') {
+      lane=2;
+    } else {
+      lane = 0;
+    }
+
+//message type
+
+    if (incoming_packet[1] == '1') {
+      //race end
+      race_end();
+    } else {
+      //something else
+    }
+
     send_reply_packet();
     //    Serial.println(millis());
-    send_broadcast("start");
-    list_clients();
   }
 }
 
