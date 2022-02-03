@@ -190,6 +190,23 @@ void send_reply_packet()
   udp_server.endPacket();
 }
 
+void heartbeat()
+{
+  int x = get_comm_channel();
+
+  char client_ip[20];
+  sprintf (client_ip, "192.168.%d.1", x);
+  //left
+  udp_server.beginPacket(client_ip, 12345);
+  udp_server.write("18");
+  udp_server.endPacket();
+//right
+  sprintf (client_ip, "192.168.%d.1", x);
+  udp_server.beginPacket(client_ip, 12345);
+  udp_server.write("08");
+  udp_server.endPacket();
+}
+
 void send_broadcast(char * msg)
 {
   udp_server.beginPacket("192.168.145.255", 12345);
@@ -319,7 +336,7 @@ void loop()
 //handle abortion
   if (race_state == RACE_ABORTED) {
     race_state = RACE_IDLE;
-//do something
+//do something ...
   }
 
   switch (race_state) {
