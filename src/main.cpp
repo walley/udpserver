@@ -16,7 +16,12 @@ WiFiUDP udp_server;
 IPAddress *ip_addr;
 IPAddress *gateway;
 IPAddress *subnet;
-const char * ssid = "zavod";
+
+char wifi_client_1_ip[20];
+char wifi_client_2_ip[20];
+char wifi_client_3_ip[20];
+
+const char *ssid = "zavod";
 unsigned int server_udp_port = 4210;  // local port to listen on
 char incoming_packet[255];  // buffer for incoming packets
 char number_str[255];
@@ -112,6 +117,22 @@ void wifi_info()
   Serial.printf("MAC address: %s\r\n", WiFi.softAPmacAddress().c_str());
   Serial.print("Soft-AP IP address: ");
   Serial.println(WiFi.softAPIP());
+}
+
+void wifi_wait_for_clients()
+{
+  if (stations != WiFi.softAPgetStationNum()) {
+    Serial.print("connected clients change:");
+    Serial.println(WiFi.softAPgetStationNum());
+    stations = WiFi.softAPgetStationNum();
+    list_clients();
+  }
+
+  if (stations == stations_max) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 void initialize_pins()
@@ -289,8 +310,18 @@ void lcd_lanes(int lane, char * msg)
       lcd.setCursor(0, 1);
       lcd.print(msg);
       break;
-  }
 
+    case 3: //third
+      lcd.setCurso2(0, 2);
+      lcd.print(msg);
+      break;
+  }
+}
+
+int wifi_ping_clients()
+{
+
+  return 3;
 }
 
 /****************************/
@@ -322,10 +353,12 @@ void setup()
 
 void loop()
 {
-  int lane;     //1 left, 2 right, 0 none
+  int lane;     //0 none, 1 left, 2 right, 3 third
   char * time_display;
   lcd.setCursor(19,1);
   lcd.print(".");
+
+  wifi_ping_clients();
 
   led_blink();
 
