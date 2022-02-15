@@ -264,6 +264,14 @@ void send_reply_packet()
   udp_server.endPacket();
 }
 
+void send_packet(char * p)
+{
+  udp_server.beginPacket("", 12345);
+  udp_server.write(p);
+  udp_server.endPacket();
+}
+
+
 void heartbeat()
 {
   int x = get_comm_channel();
@@ -352,8 +360,6 @@ int wifi_ping_clients()
 int wifi_wait_for_clients()
 {
   int lane;
-  lcd_clients(1, 0);
-  lcd_clients(2, 0);
 
   Serial.println("Waiting for clients ...");
 
@@ -384,6 +390,7 @@ int wifi_wait_for_clients()
       logged_in[lane] = 1;
       lcd_lanes(lane, "nazdar");
       lcd_clients(lane, 1);
+      send_packet("01");
     }
 
     Serial.println(lane);
@@ -429,6 +436,9 @@ void setup()
   lcd_lanes(0,"");
   left_end = 0;
   right_end = 0;
+
+  lcd_clients(1, 0);
+  lcd_clients(2, 0);
 
   for (;;) {
     wifi_wait_for_clients();
