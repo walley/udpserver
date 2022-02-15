@@ -12,6 +12,10 @@
 #define RACE_ABORTED 2
 #define RACE_IDLE 3
 
+#define LEFT_LANE 1
+#define RIGHT_LANE 0
+#define THIRD_LANE 2
+
 WiFiUDP udp_server;
 IPAddress *ip_addr;
 IPAddress *gateway;
@@ -169,20 +173,23 @@ void lcd_lanes(int lane, char * msg)
 
 void lcd_clients(int lane, int state)
 {
+  Serial.print("lcd_clients:");
 
   switch (lane) {
 
-    case 1: //left
+    case LEFT_LANE: //left
       lcd.setCursor(18, 0);
       lcd.print(state);
+      Serial.print("left");
+      Serial.println(state);
       break;
 
-    case 2: //right
+    case RIGHT_LANE: //right
       lcd.setCursor(18, 1);
       lcd.print(state);
       break;
 
-    case 3: //third
+    case THIRD_LANE: //third
       lcd.setCursor(18, 2);
       lcd.print(state);
       break;
@@ -375,7 +382,8 @@ int wifi_wait_for_clients()
     if (incoming_packet[1] == '0') {
 //login lane
       logged_in[lane] = 1;
-      lcd_lanes(lane, "1");
+      lcd_lanes(lane, "nazdar");
+      lcd_clients(lane, 1);
     }
 
     Serial.println(lane);
