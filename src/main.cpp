@@ -17,16 +17,25 @@ IPAddress *ip_addr;
 IPAddress *gateway;
 IPAddress *subnet;
 
+//this should be struct later
 char wifi_client_1_ip[20];
 char wifi_client_2_ip[20];
 char wifi_client_3_ip[20];
+int logged_in[3];
+
+////
 
 const char *ssid = "zavod";
 unsigned int server_udp_port = 4210;  // local port to listen on
+int stations = 0;
+int stations_max = 3;
+LiquidCrystal_PCF8574 lcd(0x27);
+
+////
+
 char incoming_packet[255];  // buffer for incoming packets
 char number_str[255];
 char replyPacket[50];  // a reply string to send back
-int stations = 0;
 bool result;
 int packet_number;
 IPAddress remote_ip;
@@ -41,7 +50,7 @@ unsigned long result_right;
 int left_end;
 int right_end;
 char * time_display;
-LiquidCrystal_PCF8574 lcd(0x27);
+
 
 void lcd_race_state(String msg)
 {
@@ -99,7 +108,7 @@ void packet_host_info()
   Serial.println();
 }
 
-void create_wifi()
+void wifi_create()
 {
   Serial.print("Setting soft-AP ... ");
   WiFi.softAPConfig(*ip_addr, *gateway, *subnet);
@@ -110,6 +119,10 @@ void create_wifi()
   } else {
     Serial.println("Failed!");
   }
+
+  logged_in[0] = 0;
+  logged_in[1] = 0;
+  logged_in[2] = 0;
 }
 
 void wifi_info()
@@ -119,22 +132,6 @@ void wifi_info()
   Serial.println(WiFi.softAPIP());
 }
 
-void wifi_wait_for_clients()
-{
-  if (stations != WiFi.softAPgetStationNum()) {
-    Serial.print("connected clients change:");
-    Serial.println(WiFi.softAPgetStationNum());
-    stations = WiFi.softAPgetStationNum();
-    list_clients();
-  }
-
-  if (stations == stations_max) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
 void initialize_pins()
 {
   pinMode(12, INPUT_PULLUP);  //D6
@@ -142,6 +139,55 @@ void initialize_pins()
   pinMode(2, OUTPUT);     // Initialize GPIO2 pin as an output
 }
 
+void lcd_lanes(int lane, char * msg)
+{
+  switch (lane) {
+
+    case 0:
+      lcd.setCursor(0, 0);
+      lcd.print("*** first lane.");
+      lcd.setCursor(0, 1);
+      lcd.print("*** second lane.");
+      break;
+
+    case 1: //left
+      lcd.setCursor(0, 0);
+      lcd.print(msg);
+      break;
+
+    case 2: //right
+      lcd.setCursor(0, 1);
+      lcd.print(msg);
+      break;
+
+    case 3: //third
+      lcd.setCursor(0, 2);
+      lcd.print(msg);
+      break;
+  }
+}
+
+void lcd_clients(int lane, int state)
+{
+
+  switch (lane) {
+
+    case 1: //left
+      lcd.setCursor(18, 0);
+      lcd.print(state);
+      break;
+
+    case 2: //right
+      lcd.setCursor(18, 1);
+      lcd.print(state);
+      break;
+
+    case 3: //third
+      lcd.setCursor(18, 2);
+      lcd.print(state);
+      break;
+  }
+}
 
 void led_blink()
 {
@@ -290,38 +336,64 @@ void initialize_lcd()
   lcd.clear();
 }
 
-void lcd_lanes(int lane, char * msg)
-{
-  switch (lane) {
-
-    case 0:
-      lcd.setCursor(0, 0);
-      lcd.print("*** first lane.");
-      lcd.setCursor(0, 1);
-      lcd.print("*** second lane.");
-      break;
-
-    case 1: //left
-      lcd.setCursor(0, 0);
-      lcd.print(msg);
-      break;
-
-    case 2: //right
-      lcd.setCursor(0, 1);
-      lcd.print(msg);
-      break;
-
-    case 3: //third
-      lcd.setCurso2(0, 2);
-      lcd.print(msg);
-      break;
-  }
-}
-
 int wifi_ping_clients()
 {
 
   return 3;
+}
+
+int wifi_wait_for_clients()
+{
+  int lane;
+  lcd_clients(1, 0);
+  lcd_clients(2, 0);
+
+  Serial.println("Waiting for clients ...");
+
+  int packetSize = udp_server.parsePacket();
+
+  if (packetSize) {
+    packet_host_info();
+    remote_ip = udp_server.remoteIP();
+    String remote_ip_s = remote_ip.toString();
+    int len = udp_server.read(incoming_packet, 255);
+
+    if (len > 0) {
+      incoming_packet[len] = 0;
+    }
+
+    Serial.println(incoming_packet);
+
+    if (incoming_packet[0] == '1') {
+      lane = 1;
+    } else if (incoming_packet[0] == '0') {
+      lane = 2;
+    } else {
+      lane = 0;
+    }
+
+    if (incoming_packet[1] == '0') {
+//login lane
+      logged_in[lane] = 1;
+      lcd_lanes(lane, "1");
+    }
+
+    Serial.println(lane);
+
+  }
+
+  /*if (stations != WiFi.softAPgetStationNum()) {
+    Serial.print("");
+    Serial.println(WiFi.softAPgetStationNum());
+    stations = WiFi.softAPgetStationNum();
+    list_clients();
+  }*/
+
+  if (stations == stations_max) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 /****************************/
@@ -335,7 +407,7 @@ void setup()
   set_ipv4();
   initialize_lcd();
   initialize_pins();
-  create_wifi();
+  wifi_create();
 
   delay(900);
   udp_server.begin(server_udp_port);
@@ -349,6 +421,11 @@ void setup()
   lcd_lanes(0,"");
   left_end = 0;
   right_end = 0;
+
+  for (;;) {
+    wifi_wait_for_clients();
+    delay(100);
+  }
 }
 
 void loop()
@@ -470,12 +547,27 @@ void loop()
     if (incoming_packet[0] == '1') {
       lane = 1;
     } else if (incoming_packet[0] == '0') {
-      lane=2;
+      lane = 2;
     } else {
       lane = 0;
     }
 
 //message type
+    if (incoming_packet[1] == '0') {
+      switch (lane) {
+        case 0:
+          break;
+
+        case 1:
+          Serial.println("Lane 1 relogin ...");
+          break;
+
+        case 2:
+          break;
+      }
+
+
+    }
 
     if (incoming_packet[1] == '1') {
       //race end
