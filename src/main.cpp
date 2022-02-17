@@ -22,17 +22,20 @@ IPAddress *gateway;
 IPAddress *subnet;
 
 //this should be struct later
-char wifi_client_1_ip[20];
-char wifi_client_2_ip[20];
+char wifi_client_left_ip[20];
+char wifi_client_right_ip[20];
 char wifi_client_3_ip[20];
 int logged_in[3];
+char wifi_client_ip[3][20];
 
 ////
 
 const char *ssid = "zavod";
 unsigned int server_udp_port = 4210;  // local port to listen on
 int stations = 0;
-int stations_max = 3;
+//pocet ocekavanych klientu, podle druhu zavodu
+//po pripojeni vsech se spusti faze odpoctu
+int stations_max = 1;
 LiquidCrystal_PCF8574 lcd(0x27);
 
 ////
@@ -112,7 +115,7 @@ void packet_host_info()
   Serial.println();
 }
 
-void wifi_create()
+bool wifi_create()
 {
   Serial.print("Setting soft-AP ... ");
   WiFi.softAPConfig(*ip_addr, *gateway, *subnet);
@@ -127,6 +130,8 @@ void wifi_create()
   logged_in[0] = 0;
   logged_in[1] = 0;
   logged_in[2] = 0;
+
+  return result;
 }
 
 void wifi_info()
@@ -171,6 +176,23 @@ void lcd_lanes(int lane, char * msg)
   }
 }
 
+void lcd_setup()
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Setup: verze cosik");
+  lcd.setCursor(0, 1);
+  lcd.print("wifi  : ---");
+  lcd.setCursor(0, 2);
+  lcd.print("client: ---");
+}
+
+void lcd_wifi(char * x)
+{
+  lcd.setCursor(8, 1);
+  lcd.print(x);
+}
+
 void lcd_clients(int lane, int state)
 {
   Serial.print("lcd_clients:");
@@ -178,19 +200,19 @@ void lcd_clients(int lane, int state)
   switch (lane) {
 
     case LEFT_LANE: //left
-      lcd.setCursor(18, 0);
+      lcd.setCursor(8, 2);
       lcd.print(state);
       Serial.print("left");
       Serial.println(state);
       break;
 
     case RIGHT_LANE: //right
-      lcd.setCursor(18, 1);
+      lcd.setCursor(9, 2);
       lcd.print(state);
       break;
 
     case THIRD_LANE: //third
-      lcd.setCursor(18, 2);
+      lcd.setCursor(10, 2);
       lcd.print(state);
       break;
   }
@@ -250,7 +272,6 @@ void list_clients()
     Serial.println(ip4addr_ntoa(ip_address));
   }
 
-
   Serial.println("info end");
 }
 
@@ -264,13 +285,12 @@ void send_reply_packet()
   udp_server.endPacket();
 }
 
-void send_packet(char * p)
+void send_packet(char * ip, char * p)
 {
-  udp_server.beginPacket("", 12345);
+  udp_server.beginPacket(ip, 12345);
   udp_server.write(p);
   udp_server.endPacket();
 }
-
 
 void heartbeat()
 {
@@ -353,6 +373,13 @@ void initialize_lcd()
 
 int wifi_ping_clients()
 {
+  int i;
+
+  for (i = 0; i<3; i++) {
+    if (logged_in[i]) {
+      send_packet(wifi_client_ip[i],"00");
+    }
+  }
 
   return 3;
 }
@@ -360,6 +387,8 @@ int wifi_ping_clients()
 int wifi_wait_for_clients()
 {
   int lane;
+
+  stations = 0;
 
   Serial.println("Waiting for clients ...");
 
@@ -370,6 +399,8 @@ int wifi_wait_for_clients()
     remote_ip = udp_server.remoteIP();
     String remote_ip_s = remote_ip.toString();
     int len = udp_server.read(incoming_packet, 255);
+    char remote_ip_c[20];
+    remote_ip.toString().toCharArray(remote_ip_c, 19);
 
     if (len > 0) {
       incoming_packet[len] = 0;
@@ -386,11 +417,13 @@ int wifi_wait_for_clients()
     }
 
     if (incoming_packet[1] == '0') {
-//login lane
+      //login lane
       logged_in[lane] = 1;
-      lcd_lanes(lane, "nazdar");
       lcd_clients(lane, 1);
-      send_packet("01");
+      strcpy(wifi_client_left_ip, remote_ip_c);
+      strcpy(wifi_client_ip[lane], remote_ip_c);
+      send_packet(remote_ip_c, "01");
+      stations++;
     }
 
     Serial.println(lane);
@@ -415,14 +448,24 @@ int wifi_wait_for_clients()
 
 void setup()
 {
+  bool wifi;
+
   Serial.begin(9600);
   Serial.println();
-  Serial.println("UDPSERVER 0.0");
+  Serial.println("UDPSERVER verze""x");
+
+  initialize_lcd();
+  lcd_setup();
 
   set_ipv4();
-  initialize_lcd();
   initialize_pins();
-  wifi_create();
+  wifi = wifi_create();
+
+  if (wifi) {
+    lcd_wifi("ok");
+  } else {
+    lcd_wifi("error");
+  }
 
   delay(900);
   udp_server.begin(server_udp_port);
@@ -433,17 +476,15 @@ void setup()
   switch_status = 0;
   timer = 0;
   timer_on = 0;
-  lcd_lanes(0,"");
   left_end = 0;
   right_end = 0;
 
-  lcd_clients(1, 0);
-  lcd_clients(2, 0);
-
-  for (;;) {
-    wifi_wait_for_clients();
+  for (; !wifi_wait_for_clients();) {
     delay(100);
   }
+
+  lcd.clear();
+
 }
 
 void loop()
