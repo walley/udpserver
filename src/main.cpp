@@ -218,6 +218,20 @@ void lcd_clients(int lane, int state)
   }
 }
 
+void lcd_clients_info()
+{
+  lcd.clear();
+  lcd.home();
+  lcd.setCursor(0, 0);
+  lcd.printf("s:%i sm:%i %i%i%i", stations, stations_max, logged_in[0], logged_in[1], logged_in[2]);
+  lcd.setCursor(0, 1);
+  lcd.print(wifi_client_ip[0]);
+  lcd.setCursor(0, 2);
+  lcd.print(wifi_client_ip[1]);
+  lcd.setCursor(0, 3);
+  lcd.print(wifi_client_ip[2]);
+}
+
 void led_blink()
 {
   return;
@@ -253,23 +267,13 @@ void list_clients()
   softap_stations_cnt = wifi_softap_get_station_num();
   Serial.println(softap_stations_cnt);
 
-  /*  stat_info = wifi_softap_get_station_info();
-  while (stat_info != NULL) {
-      ip_address = &stat_info->ip;
-      Serial.println(ip4addr_ntoa(ip_address));
-      stat_info = STAILQ_NEXT(stat_info, next);
-    }
-
-  char station_mac[18] = {0}; sprintf(station_mac, "%02X:%02X:%02X:%02X:%02X:%02X", MAC2STR(station_list->bssid));
-  String station_ip = IPAddress((&station_list->ip)->addr).toString();
-  */
-
   for (stat_info = wifi_softap_get_station_info();
        stat_info != NULL;
        stat_info = STAILQ_NEXT(stat_info, next)) {
     ip_address = &stat_info->ip;
     Serial.print("x:");
     Serial.println(ip4addr_ntoa(ip_address));
+    //char station_mac[18] = {0}; sprintf(station_mac, "%02X:%02X:%02X:%02X:%02X:%02X", MAC2STR(station_list->bssid));
   }
 
   Serial.println("info end");
@@ -545,6 +549,8 @@ void loop()
         race_start();
       } else if (race_state == RACE_STARTED) {
         race_abort();  //emergency stop
+        lcd_clients_info();
+        delay(1000);
       }
     }
 
