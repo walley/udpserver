@@ -11,8 +11,8 @@ esp8266 server comunicates through udp
 
 ### C -> S
 
-byte0: lane
-byte1: message
+* byte0: lane
+* byte1: message
 
 ---
 
