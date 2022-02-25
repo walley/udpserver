@@ -540,10 +540,10 @@ void process_packet()
 
 // x2 pong
     if (incoming_packet[1] == '2') {
+      Serial.println("pong");
     }
 
-
-    send_reply_packet();
+    //send_reply_packet();
     //    Serial.println(millis());
   }
 }
