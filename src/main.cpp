@@ -22,11 +22,10 @@ IPAddress *gateway;
 IPAddress *subnet;
 
 //this should be struct later
-char wifi_client_left_ip[20];
-char wifi_client_right_ip[20];
-char wifi_client_3_ip[20];
+
 int logged_in[3];
 char wifi_client_ip[3][20];
+unsigned long wifi_client_ping_time[3];
 
 ////
 
@@ -380,9 +379,9 @@ int wifi_ping_clients()
   int i;
 
   for (i = 0; i<3; i++) {
-    if (logged_in[i]) {
-      send_packet(wifi_client_ip[i],"00");
-    }
+    //if (logged_in[i]) {
+    send_packet(wifi_client_ip[i],"00");
+    //main.cpp}
   }
 
   return 3;
@@ -445,6 +444,97 @@ int wifi_wait_for_clients()
     return 1;
   } else {
     return 0;
+  }
+}
+
+void process_packet()
+{
+  int lane;
+  int packetSize = udp_server.parsePacket();
+
+  if (packetSize) {
+    lcd.setCursor(19,1);
+    lcd.print("#");
+
+    packet_host_info();
+
+    remote_ip = udp_server.remoteIP();
+    String remote_ip_s = remote_ip.toString();
+
+    //Serial.println(millis());
+
+    int len = udp_server.read(incoming_packet, 255);
+
+    if (len > 0) {
+      incoming_packet[len] = 0;
+    }
+
+    Serial.println(incoming_packet);
+    Serial.println(remote_ip_s);
+    int whereisdot = remote_ip_s.lastIndexOf('.');
+    String guest_number = remote_ip_s.substring(whereisdot + 1, whereisdot + 4);
+    Serial.print("guest #");
+    Serial.println(guest_number);
+
+//parse packet
+//which lane side
+    switch (incoming_packet[0]) {
+      case 1:
+        lane = 1;
+        break;
+
+      case 2:
+        lane = 2;
+        break;
+
+      case 3:
+        lane = 3;
+        break;
+    }
+
+//message type
+    if (incoming_packet[1] == '0') {
+      switch (lane) {
+        case 0:
+          break;
+
+        case 1:
+          Serial.println("Lane 1 relogin ...");
+          break;
+
+        case 2:
+          break;
+      }
+
+
+    }
+
+    if (incoming_packet[1] == '1') {
+      //race end
+      if (lane == 1) {
+        result_left = millis() - racetime;
+        time_display = millis_to_time(result_left);
+        lcd_lanes(1, time_display);
+        free(time_display);
+        left_end = 1;
+      } else if (lane == 2) {
+        result_right = millis() - racetime;
+        time_display = millis_to_time(result_left);
+        lcd_lanes(2, time_display);
+        free(time_display);
+        right_end = 1;
+      }
+
+      if (left_end && right_end) {
+        race_end();
+      }
+
+    } else {
+      //something else
+    }
+
+    send_reply_packet();
+    //    Serial.println(millis());
   }
 }
 
@@ -573,93 +663,16 @@ void loop()
     lcd.print("00:00:00.000");
   }
 
-  if (stations != WiFi.softAPgetStationNum()) {
-    Serial.print("connected clients change:");
-    Serial.println(WiFi.softAPgetStationNum());
-    stations = WiFi.softAPgetStationNum();
+  /*    if (stations != WiFi.softAPgetStationNum()) {
+        Serial.print("connected clients change:");
+        Serial.println(WiFi.softAPgetStationNum());
+        stations = WiFi.softAPgetStationNum();
 
-    list_clients();
-  }
-
-  int packetSize = udp_server.parsePacket();
-
-  if (packetSize) {
-    lcd.setCursor(19,1);
-    lcd.print("#");
-
-    packet_host_info();
-
-    remote_ip = udp_server.remoteIP();
-    String remote_ip_s = remote_ip.toString();
-
-    //Serial.println(millis());
-
-    int len = udp_server.read(incoming_packet, 255);
-
-    if (len > 0) {
-      incoming_packet[len] = 0;
-    }
-
-    Serial.println(incoming_packet);
-    Serial.println(remote_ip_s);
-    int whereisdot = remote_ip_s.lastIndexOf('.');
-    String guest_number = remote_ip_s.substring(whereisdot + 1, whereisdot + 4);
-    Serial.print("guest #");
-    Serial.println(guest_number);
-
-//parse packet
-//which lane side
-    if (incoming_packet[0] == '1') {
-      lane = 1;
-    } else if (incoming_packet[0] == '0') {
-      lane = 2;
-    } else {
-      lane = 0;
-    }
-
-//message type
-    if (incoming_packet[1] == '0') {
-      switch (lane) {
-        case 0:
-          break;
-
-        case 1:
-          Serial.println("Lane 1 relogin ...");
-          break;
-
-        case 2:
-          break;
+        list_clients();
       }
+  */
+  process_packet();
 
-
-    }
-
-    if (incoming_packet[1] == '1') {
-      //race end
-      if (lane == 1) {
-        result_left = millis() - racetime;
-        time_display = millis_to_time(result_left);
-        lcd_lanes(1, time_display);
-        free(time_display);
-        left_end = 1;
-      } else if (lane == 2) {
-        result_right = millis() - racetime;
-        time_display = millis_to_time(result_left);
-        lcd_lanes(2, time_display);
-        free(time_display);
-        right_end = 1;
-      }
-
-      if (left_end && right_end) {
-        race_end();
-      }
-
-    } else {
-      //something else
-    }
-
-    send_reply_packet();
-    //    Serial.println(millis());
-  }
 }
+
 
