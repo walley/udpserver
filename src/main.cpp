@@ -5,6 +5,8 @@
 #include <LiquidCrystal_PCF8574.h>
 #include <Wire.h>
 
+#define VERSION "0.0"
+
 #define BUTTON_1 12
 
 #define RACE_ENDED 0
@@ -106,31 +108,11 @@ void packet_info(int size)
 
 void packet_host_info()
 {
-  Serial.print("UDP remote ip:");
+  Serial.print("UDP remote:");
   Serial.print(udp_server.remoteIP());
-  Serial.println();
-  Serial.print("UDP remote port:");
+  Serial.print(":");
   Serial.print(udp_server.remotePort());
   Serial.println();
-}
-
-bool wifi_create()
-{
-  Serial.print("Setting soft-AP ... ");
-  WiFi.softAPConfig(*ip_addr, *gateway, *subnet);
-  result = WiFi.softAP("zavod", "xxxxxxxxx");
-
-  if (result == true) {
-    Serial.println("Ready");
-  } else {
-    Serial.println("Failed!");
-  }
-
-  logged_in[0] = 0;
-  logged_in[1] = 0;
-  logged_in[2] = 0;
-
-  return result;
 }
 
 void wifi_info()
@@ -179,7 +161,7 @@ void lcd_setup()
 {
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Setup: verze cosik");
+  lcd.print("Setup: verze "VERSION);
   lcd.setCursor(0, 1);
   lcd.print("wifi  : ---");
   lcd.setCursor(0, 2);
@@ -276,6 +258,26 @@ void list_clients()
   }
 
   Serial.println("info end");
+}
+
+bool wifi_create()
+{
+  lcd_wifi("cr");
+  Serial.print("Setting soft-AP ... ");
+  WiFi.softAPConfig(*ip_addr, *gateway, *subnet);
+  result = WiFi.softAP("zavod", "xxxxxxxxx");
+
+  if (result == true) {
+    Serial.println("Ready");
+  } else {
+    Serial.println("Failed!");
+  }
+
+  logged_in[0] = 0;
+  logged_in[1] = 0;
+  logged_in[2] = 0;
+
+  return result;
 }
 
 void send_reply_packet()
@@ -423,7 +425,6 @@ int wifi_wait_for_clients()
       //login lane
       logged_in[lane] = 1;
       lcd_clients(lane, 1);
-      strcpy(wifi_client_left_ip, remote_ip_c);
       strcpy(wifi_client_ip[lane], remote_ip_c);
       send_packet(remote_ip_c, "01");
       stations++;
@@ -490,9 +491,15 @@ void process_packet()
       case 3:
         lane = 3;
         break;
+
+      case 0:
+        lane = 0;
+        break;
     }
 
 //message type
+
+// x0 - login
     if (incoming_packet[1] == '0') {
       switch (lane) {
         case 0:
@@ -509,6 +516,7 @@ void process_packet()
 
     }
 
+// x1 - end race
     if (incoming_packet[1] == '1') {
       //race end
       if (lane == 1) {
@@ -528,10 +536,12 @@ void process_packet()
       if (left_end && right_end) {
         race_end();
       }
-
-    } else {
-      //something else
     }
+
+// x2 pong
+    if (incoming_packet[1] == '2') {
+    }
+
 
     send_reply_packet();
     //    Serial.println(millis());
@@ -558,7 +568,7 @@ void setup()
   if (wifi) {
     lcd_wifi("ok");
   } else {
-    lcd_wifi("error");
+    lcd_wifi("err");
   }
 
   delay(900);
