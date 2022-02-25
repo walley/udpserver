@@ -16,7 +16,7 @@ esp8266 server comunicates through udp
 byte0: lane
 byte1: message
 
-x0 -login
-x1 - end
-x2 - pong
-x3 -
+* x0 -login
+* x1 - end
+* x2 - pong
+* x3 -
