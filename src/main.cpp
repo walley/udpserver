@@ -548,7 +548,7 @@ void process_packet()
       unsigned long ping_time = millis() - wifi_client_ping_time[client];
       Serial.print("pong:");
       Serial.println(ping_time);
-
+//display ping time
     }
   }
 }
