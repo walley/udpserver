@@ -435,13 +435,6 @@ int wifi_wait_for_clients()
 
   }
 
-  /*if (stations != WiFi.softAPgetStationNum()) {
-    Serial.print("");
-    Serial.println(WiFi.softAPgetStationNum());
-    stations = WiFi.softAPgetStationNum();
-    list_clients();
-  }*/
-
   if (stations == stations_max) {
     return 1;
   } else {
