@@ -62,9 +62,9 @@ char * time_display;
 
 void lcd_race_state(String msg)
 {
-  lcd.setCursor(0,2);
-  lcd.print("race           !");
-  lcd.setCursor(5,2);
+  lcd.setCursor(0,0);
+  lcd.print("race        !");
+  lcd.setCursor(5,0);
   lcd.print(msg);
 }
 
@@ -331,7 +331,7 @@ void initialize_timer()
 void race_start()
 {
   list_clients();
-  send_broadcast("start");
+  send_broadcast("02");
   race_state = RACE_STARTED;
   Serial.println("race started");
   initialize_timer();
@@ -342,7 +342,7 @@ void race_start()
 void race_end()
 {
   list_clients();
-  send_broadcast("end");
+  send_broadcast("03");
   race_state = RACE_ENDED;
   timer_on = 0;
   lcd_race_state("ended");
@@ -351,7 +351,7 @@ void race_end()
 void race_abort()
 {
   list_clients();
-  send_broadcast("abort");
+  send_broadcast("04");
   race_state = RACE_ABORTED;
   timer_on = 0;
   lcd_race_state("aborted");
@@ -473,17 +473,14 @@ void process_packet()
     Serial.print("client #");
     Serial.println(client);
 
-
-    //Serial.println(millis());
-
     int len = udp_server.read(incoming_packet, 255);
 
     if (len > 0) {
       incoming_packet[len] = 0;
     }
 
+    Serial.print("content:");
     Serial.println(incoming_packet);
-    Serial.println(remote_ip_s);
     int whereisdot = remote_ip_s.lastIndexOf('.');
     String guest_number = remote_ip_s.substring(whereisdot + 1, whereisdot + 4);
     Serial.print("guest #");
@@ -550,12 +547,11 @@ void process_packet()
 
 // x2 pong
     if (incoming_packet[1] == '2') {
-      Serial.println("pong");
-      unsigned long ping_time = millis();
-    }
+      unsigned long ping_time = millis() - wifi_client_ping_time[client];
+      Serial.print("pong:");
+      Serial.println(ping_time);
 
-    //send_reply_packet();
-    //    Serial.println(millis());
+    }
   }
 }
 
@@ -641,6 +637,8 @@ void loop()
       break;
   }
 
+  process_packet();
+
   switch_status = digitalRead(BUTTON_1);
 
   if (!switch_status) {
@@ -684,14 +682,6 @@ void loop()
     lcd.print("00:00:00.000");
   }
 
-  /*    if (stations != WiFi.softAPgetStationNum()) {
-        Serial.print("connected clients change:");
-        Serial.println(WiFi.softAPgetStationNum());
-        stations = WiFi.softAPgetStationNum();
-
-        list_clients();
-      }
-  */
   process_packet();
 
 }
