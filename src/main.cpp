@@ -28,10 +28,11 @@ IPAddress *subnet;
 int logged_in[3];
 char wifi_client_ip[3][20];
 unsigned long wifi_client_ping_time[3];
+int wifi_client_ping[3];
 
 ////
 
-const char *ssid = "zavod";
+char ssid[9]; //"zavod"+channel;
 unsigned int server_udp_port = 4210;  // local port to listen on
 int stations = 0;
 //pocet ocekavanych klientu, podle druhu zavodu
@@ -92,7 +93,12 @@ int get_comm_channel()
 
 void set_ipv4()
 {
+  char chnl[4];
+
   int x = get_comm_channel();
+  snprintf(chnl, 3, "%i", x);
+  strcpy(ssid,"zavod");
+  strcat(ssid, chnl);
   ip_addr = new IPAddress(192,168,x,1);  //server ip address
   gateway = new IPAddress(192,168,x,1);
   subnet = new IPAddress(255,255,255,0);
@@ -265,17 +271,13 @@ bool wifi_create()
   lcd_wifi("cr");
   Serial.print("Setting soft-AP ... ");
   WiFi.softAPConfig(*ip_addr, *gateway, *subnet);
-  result = WiFi.softAP("zavod", "xxxxxxxxx");
+  result = WiFi.softAP(ssid, "xxxxxxxxx");
 
   if (result == true) {
     Serial.println("Ready");
   } else {
     Serial.println("Failed!");
   }
-
-  logged_in[0] = 0;
-  logged_in[1] = 0;
-  logged_in[2] = 0;
 
   return result;
 }
@@ -479,8 +481,11 @@ void process_packet()
     Serial.print("guest #");
     Serial.println(guest_number);
 
+//////////////
 //parse packet
-//which lane side
+//////////////
+
+//lane
     switch (incoming_packet[0]) {
       case 1:
         lane = 1;
@@ -553,6 +558,12 @@ void process_packet()
 void setup()
 {
   bool wifi;
+
+  for (int i = 0; i< 3; i++) {
+    wifi_client_ping[i] = 0;
+    logged_in[i] = 0;
+
+  }
 
   Serial.begin(9600);
   Serial.println();
@@ -656,7 +667,6 @@ void loop()
       }
     }
 
-
     if (switch_status == 0 && switch_status_last == 1) {
       Serial.println("switch press start");
     }
@@ -669,6 +679,7 @@ void loop()
 
   if (timer_on) {
     time_display = millis_to_time(millis() - racetime);
+    lcd.print("time:");
     lcd.print(time_display);
     free(time_display);
   } else {
