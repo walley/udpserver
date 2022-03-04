@@ -205,6 +205,11 @@ void lcd_clients(int lane, int state)
   }
 }
 
+void lcd_clients_ping()
+{
+  lcd.setCursor(0, 0);
+}
+
 void lcd_clients_info()
 {
   lcd.clear();
@@ -549,6 +554,7 @@ void process_packet()
       Serial.print("pong:");
       Serial.println(ping_time);
 //display ping time
+      lcd_clients_ping();
     }
   }
 }
