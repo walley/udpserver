@@ -383,7 +383,8 @@ int wifi_ping_clients()
   for (i = 0; i<3; i++) {
     //if (logged_in[i]) {
     send_packet(wifi_client_ip[i],"00");
-    //main.cpp}
+    wifi_client_ping_time[i] = millis();
+    // main.cpp}
   }
 
   return 3;
@@ -451,6 +452,7 @@ int wifi_wait_for_clients()
 void process_packet()
 {
   int lane;
+  int client;
   int packetSize = udp_server.parsePacket();
 
   if (packetSize) {
@@ -461,6 +463,16 @@ void process_packet()
 
     remote_ip = udp_server.remoteIP();
     String remote_ip_s = remote_ip.toString();
+
+    for (int i = 0; i<3; i++) {
+      if (!strcmp(remote_ip_s.c_str(), wifi_client_ip[i])) {
+        client = i;
+      }
+    }
+
+    Serial.print("client #");
+    Serial.println(client);
+
 
     //Serial.println(millis());
 
@@ -512,8 +524,6 @@ void process_packet()
         case 2:
           break;
       }
-
-
     }
 
 // x1 - end race
@@ -541,6 +551,7 @@ void process_packet()
 // x2 pong
     if (incoming_packet[1] == '2') {
       Serial.println("pong");
+      unsigned long ping_time = millis();
     }
 
     //send_reply_packet();
