@@ -32,12 +32,12 @@ int wifi_client_ping[3];
 
 ////
 
-char ssid[9]; //"zavod"+channel;
+char ssid[15]; //"zavod"+channel;
 unsigned int server_udp_port = 4210;  // local port to listen on
 int stations = 0;
 //pocet ocekavanych klientu, podle druhu zavodu
 //po pripojeni vsech se spusti faze odpoctu
-int stations_max = 1;
+int stations_max = 2;
 LiquidCrystal_PCF8574 lcd(0x27);
 
 ////
@@ -60,6 +60,7 @@ int left_end;
 int right_end;
 char * time_display;
 
+int network_identification;
 
 void lcd_race_state(String msg)
 {
@@ -88,7 +89,8 @@ char * millis_to_time(unsigned long m)
 
 int get_comm_channel()
 {
-  return 145;
+  network_identification = 2;
+  return 140 + network_identification;
 }
 
 void set_ipv4()
@@ -96,7 +98,7 @@ void set_ipv4()
   char chnl[4];
 
   int x = get_comm_channel();
-  snprintf(chnl, 3, "%i", x);
+  snprintf(chnl, 4, "%i", x);
   strcpy(ssid,"zavod");
   strcat(ssid, chnl);
   ip_addr = new IPAddress(192,168,x,1);  //server ip address
@@ -169,9 +171,9 @@ void lcd_setup()
   lcd.setCursor(0, 0);
   lcd.print("Setup: verze "VERSION);
   lcd.setCursor(0, 1);
-  lcd.print("wifi  : ---");
+  lcd.print("wifi  : --");
   lcd.setCursor(0, 2);
-  lcd.print("client: ---");
+  lcd.print("client: --------");
 }
 
 void lcd_wifi(char * x)
@@ -183,26 +185,11 @@ void lcd_wifi(char * x)
 void lcd_clients(int lane, int state)
 {
   Serial.print("lcd_clients:");
-
-  switch (lane) {
-
-    case LEFT_LANE: //left
-      lcd.setCursor(8, 2);
-      lcd.print(state);
-      Serial.print("left");
-      Serial.println(state);
-      break;
-
-    case RIGHT_LANE: //right
-      lcd.setCursor(9, 2);
-      lcd.print(state);
-      break;
-
-    case THIRD_LANE: //third
-      lcd.setCursor(10, 2);
-      lcd.print(state);
-      break;
-  }
+  lcd.setCursor(8 + lane, 2);
+  lcd.print(state);
+  Serial.print(lane);
+  Serial.print(",");
+  Serial.println(state);
 }
 
 void lcd_clients_ping()
@@ -403,7 +390,7 @@ int wifi_wait_for_clients()
 
   stations = 0;
 
-  Serial.println("Waiting for clients ...");
+// Serial.println("Waiting for clients ...");
 
   int packetSize = udp_server.parsePacket();
 
@@ -419,15 +406,11 @@ int wifi_wait_for_clients()
       incoming_packet[len] = 0;
     }
 
+    Serial.print("incoming_packet:");
     Serial.println(incoming_packet);
 
-    if (incoming_packet[0] == '1') {
-      lane = 1;
-    } else if (incoming_packet[0] == '0') {
-      lane = 2;
-    } else {
-      lane = 0;
-    }
+    lane = incoming_packet[0];
+    Serial.printf("lane:%i\n",lane);
 
     if (incoming_packet[1] == '0') {
       //login lane
@@ -583,7 +566,7 @@ void setup()
   wifi = wifi_create();
 
   if (wifi) {
-    lcd_wifi("ok");
+    lcd_wifi(ssid);
   } else {
     lcd_wifi("err");
   }
