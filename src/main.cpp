@@ -7,7 +7,15 @@
 
 #define VERSION "0.1"
 
-#define BUTTON_1 12
+#define BUTTON_1 D6 //12
+#define BUTTON_2 D7 //13
+
+#define SCREEN_RACE 0xa
+#define SCREEN_WIFI 0xb
+#define SCREEN_c 0xc
+#define SCREEN_d 0xd
+#define SCREEN_e 0xe
+#define SCREEN_f 0xf
 
 #define RACE_ENDED 0
 #define RACE_STARTED 1
@@ -25,10 +33,10 @@ IPAddress *subnet;
 
 //this should be struct later
 
-int logged_in[3];
-char wifi_client_ip[3][20];
-unsigned long wifi_client_ping_time[3];
-int wifi_client_ping[3];
+int logged_in[8];
+char wifi_client_ip[8][20];
+unsigned long wifi_client_ping_time[8];
+int wifi_client_ping[8];
 
 ////
 
@@ -49,6 +57,10 @@ bool result;
 int packet_number;
 IPAddress remote_ip;
 int race_state;
+int button_2_status;
+int button_2_status_last;
+
+int button_1_status;
 int switch_status;
 int switch_status_last;
 int timer;
@@ -59,6 +71,7 @@ unsigned long result_right;
 int left_end;
 int right_end;
 char * time_display;
+int lcd_screen = 0xa;
 
 int network_identification;
 
@@ -132,9 +145,11 @@ void wifi_info()
 
 void initialize_pins()
 {
-  pinMode(12, INPUT_PULLUP);  //D6
+  pinMode(BUTTON_1, INPUT_PULLUP);  //D6,GPIO12
+  pinMode(BUTTON_2, INPUT_PULLUP);  //D7,GPIO13
+
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
-  pinMode(2, OUTPUT);     // Initialize GPIO2 pin as an output
+  pinMode(D4, OUTPUT);    //D4, GPIO2
 }
 
 void lcd_lanes(int lane, char * msg)
@@ -199,7 +214,6 @@ void lcd_clients_ping()
 
 void lcd_clients_info()
 {
-  lcd.clear();
   lcd.home();
   lcd.setCursor(0, 0);
   lcd.printf("s:%i sm:%i %i%i%i", stations, stations_max, logged_in[0], logged_in[1], logged_in[2]);
@@ -409,7 +423,7 @@ int wifi_wait_for_clients()
     Serial.print("incoming_packet:");
     Serial.println(incoming_packet);
 
-    lane = incoming_packet[0];
+    lane = incoming_packet[0] - '0';
     Serial.printf("lane:%i\n",lane);
 
     if (incoming_packet[1] == '0') {
@@ -417,6 +431,7 @@ int wifi_wait_for_clients()
       logged_in[lane] = 1;
       lcd_clients(lane, 1);
       strcpy(wifi_client_ip[lane], remote_ip_c);
+      Serial.println(remote_ip_c);
       send_packet(remote_ip_c, "01");
       stations++;
     }
@@ -542,7 +557,64 @@ void process_packet()
   }
 }
 
-/****************************/
+void lcd_screen_race()
+{
+  lcd.setCursor(0,3);
+
+  if (timer_on) {
+    time_display = millis_to_time(millis() - racetime);
+    lcd.print("time:");
+    lcd.print(time_display);
+    free(time_display);
+  } else {
+    lcd.print("00:00:00.000");
+  }
+
+  switch (race_state) {
+    case RACE_IDLE:
+      lcd_race_state("idle");
+      break;
+
+    case RACE_ABORTED:
+      lcd_race_state("aborted");
+      break;
+
+    case RACE_STARTED:
+      lcd_race_state("started");
+      break;
+
+    case RACE_ENDED:
+      lcd_race_state("ended");
+      break;
+  }
+}
+
+void lcd_screen_f()
+{
+  lcd.setCursor(19,1);
+  lcd.print(":)");
+}
+
+void lcd_display_screen()
+{
+
+  switch (lcd_screen) {
+    case SCREEN_WIFI:
+      lcd_clients_info();
+      break;
+
+    case SCREEN_RACE:
+      lcd_screen_race();
+      break;
+
+    case SCREEN_f:
+      lcd_screen_f();
+      break;
+  }
+
+}
+
+/******************************************************************************/
 
 void setup()
 {
@@ -556,7 +628,7 @@ void setup()
 
   Serial.begin(9600);
   Serial.println();
-  Serial.println("UDPSERVER verze""x");
+  Serial.println("UDPSERVER verze"VERSION);
 
   initialize_lcd();
   lcd_setup();
@@ -583,9 +655,9 @@ void setup()
   left_end = 0;
   right_end = 0;
 
-  for (; !wifi_wait_for_clients();) {
-    delay(100);
-  }
+  //for (; !wifi_wait_for_clients();) {
+  //  delay(100);
+  //}
 
   lcd.clear();
 
@@ -602,45 +674,30 @@ void loop()
 
   led_blink();
 
-  if (race_state == RACE_IDLE) {
-    lcd_race_state("idle");
-  }
-
 //handle abortion
   if (race_state == RACE_ABORTED) {
     race_state = RACE_IDLE;
 //do something ...
   }
 
-  switch (race_state) {
-    case RACE_IDLE:
-      lcd_race_state("idle");
-      break;
-
-    case RACE_ABORTED:
-      lcd_race_state("aborted");
-      break;
-
-    case RACE_STARTED:
-      lcd_race_state("started");
-      break;
-
-    case RACE_ENDED:
-      lcd_race_state("ended");
-      break;
-  }
-
   process_packet();
 
-  switch_status = digitalRead(BUTTON_1);
+  button_1_status = digitalRead(BUTTON_1);
+  button_2_status = digitalRead(BUTTON_2);
 
-  if (!switch_status) {
+  if (!button_1_status) {
     Serial.println("switch pressed");
     lcd.setCursor(19,0);
     lcd.print("X");
   } else {
     lcd.setCursor(19,0);
     lcd.print(".");
+  }
+
+  if (!button_2_status) {
+//pressed
+  } else {
+//sad
   }
 
   if (switch_status != switch_status_last) {
@@ -664,19 +721,30 @@ void loop()
 
   switch_status_last = switch_status;
 
-  lcd.setCursor(0,3);
+  if (button_2_status != button_2_status_last) {
+    if (button_2_status == HIGH && button_2_status_last == LOW) {
+      Serial.println("button2 press end");
+      lcd_screen++;
 
-  if (timer_on) {
-    time_display = millis_to_time(millis() - racetime);
-    lcd.print("time:");
-    lcd.print(time_display);
-    free(time_display);
-  } else {
-    lcd.print("00:00:00.000");
+      if (lcd_screen > 0xf) {
+        lcd_screen = 0xa;
+      }
+
+      lcd.clear();
+      Serial.println(lcd_screen);
+      lcd.println(lcd_screen);
+    } else if (race_state == RACE_STARTED) {
+    }
   }
 
-  process_packet();
+  if (button_2_status == LOW && button_2_status_last == HIGH) {
+    Serial.println("button2 press start");
+  }
 
+  button_2_status_last = button_2_status;
+
+  process_packet();
+  lcd_display_screen();
 }
 
 
