@@ -12,8 +12,8 @@
 
 #define SCREEN_RACE 0xa
 #define SCREEN_WIFI 0xb
-#define SCREEN_c 0xc
-#define SCREEN_d 0xd
+#define SCREEN_SERVER 0xc
+#define SCREEN_LOG 0xd
 #define SCREEN_e 0xe
 #define SCREEN_f 0xf
 
@@ -216,13 +216,20 @@ void lcd_clients_info()
 {
   lcd.home();
   lcd.setCursor(0, 0);
-  lcd.printf("s:%i sm:%i %i%i%i", stations, stations_max, logged_in[0], logged_in[1], logged_in[2]);
+  lcd.printf("st:%i stm:%i.", stations, stations_max);
+
   lcd.setCursor(0, 1);
-  lcd.print(wifi_client_ip[0]);
+
+  for (int i = 0; i < 8; i++) {
+    lcd.print(logged_in[i]);
+  }
+
   lcd.setCursor(0, 2);
-  lcd.print(wifi_client_ip[1]);
-  lcd.setCursor(0, 3);
-  lcd.print(wifi_client_ip[2]);
+
+  for (int i = 0; i < 8; i++) {
+    lcd.print(i);
+    lcd.print(wifi_client_ip[0]);
+  }
 }
 
 void led_blink()
@@ -398,6 +405,17 @@ int wifi_ping_clients()
   return 3;
 }
 
+
+int wifi_client_login(int client, char * ip)
+{
+  logged_in[client] = 1;
+  lcd_clients(client, 1);
+  strcpy(wifi_client_ip[client], remote_ip_c);
+  Serial.println(ip);
+  send_packet(ip, "01");
+  stations++;
+}
+
 int wifi_wait_for_clients()
 {
   int lane;
@@ -453,7 +471,7 @@ void process_packet()
   int client;
   int packetSize = udp_server.parsePacket();
 
-  if (packetSize) {
+  if (packetSize && SCREEN_LOG) {
     lcd.setCursor(19,1);
     lcd.print("#");
 
@@ -461,6 +479,7 @@ void process_packet()
 
     remote_ip = udp_server.remoteIP();
     String remote_ip_s = remote_ip.toString();
+    char * remote_ip_c = remote_ip_s.c_str();
 
     for (int i = 0; i<3; i++) {
       if (!strcmp(remote_ip_s.c_str(), wifi_client_ip[i])) {
@@ -488,7 +507,7 @@ void process_packet()
 //parse packet
 //////////////
 
-//lane
+//device identification
     switch (incoming_packet[0]) {
       case 1:
         lane = 1;
@@ -511,17 +530,8 @@ void process_packet()
 
 // x0 - login
     if (incoming_packet[1] == '0') {
-      switch (lane) {
-        case 0:
-          break;
-
-        case 1:
-          Serial.println("Lane 1 relogin ...");
-          break;
-
-        case 2:
-          break;
-      }
+      Serial.printf("Device %i tries to login ...", lane);
+      wifi_client_login(lane, remote_ip_c);
     }
 
 // x1 - end race
@@ -589,10 +599,21 @@ void lcd_screen_race()
   }
 }
 
-void lcd_screen_f()
+
+void lcd_screen_server()
 {
-  lcd.setCursor(19,1);
-  lcd.print(":)");
+  lcd.setCursor(0,0);
+  lcd.print("server:");
+  lcd.print(ip_to_String(*ip_addr));
+
+  lcd.setCursor(0,1);
+  lcd.print(ip_to_String(*gateway));
+
+  lcd.setCursor(0,2);
+  lcd.print(ssid);
+
+  lcd.setCursor(0,3);
+  lcd.print(network_identification);
 }
 
 void lcd_display_screen()
@@ -607,9 +628,13 @@ void lcd_display_screen()
       lcd_screen_race();
       break;
 
-    case SCREEN_f:
-      lcd_screen_f();
+    case SCREEN_SERVER:
+      lcd_screen_server();
       break;
+
+//    case SCREEN_f:
+//      lcd_screen_f();
+//      break;
   }
 
 }
