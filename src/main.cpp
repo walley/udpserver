@@ -62,7 +62,7 @@ int button_2_status_last;
 
 int button_1_status;
 int switch_status;
-int switch_status_last;
+int button_1_status_last;
 int timer;
 int timer_on;
 unsigned long racetime;
@@ -703,7 +703,6 @@ void loop()
   button_2_status = digitalRead(BUTTON_2);
 
   if (!button_1_status) {
-    Serial.println("switch pressed");
     lcd.setCursor(19,0);
     lcd.print("X");
   } else {
@@ -712,13 +711,15 @@ void loop()
   }
 
   if (!button_2_status) {
-//pressed
+    lcd.setCursor(19,0);
+    lcd.print("Y");
   } else {
-//sad
+    lcd.setCursor(19,0);
+    lcd.print(".");
   }
 
-  if (switch_status != switch_status_last) {
-    if (switch_status == HIGH && switch_status_last == LOW) {
+  if (button_1_status != button_1_status_last) {
+    if (button_1_status == HIGH && button_1_status_last == LOW) {
       Serial.println("switch press end");
 
       if (race_state == RACE_IDLE) {
@@ -730,13 +731,13 @@ void loop()
       }
     }
 
-    if (switch_status == 0 && switch_status_last == 1) {
+    if (button_1_status == LOW && button_1_status_last == HIGH) {
       Serial.println("switch press start");
     }
 
   }
 
-  switch_status_last = switch_status;
+  button_1_status_last = button_1_status;
 
   if (button_2_status != button_2_status_last) {
     if (button_2_status == HIGH && button_2_status_last == LOW) {
