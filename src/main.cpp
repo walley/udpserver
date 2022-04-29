@@ -621,7 +621,7 @@ void process_packet()
         lcd_lanes(1, time_display);
         left_end = 1;
         first = 1;
-        Serial.printf("First client %i, time:%s", client, time_display);
+        Serial.printf("First client %i, time:%s\n", client, time_display);
         free(time_display);
       } else if (first && !second) {
         result_right = millis() - racetime;
@@ -629,7 +629,7 @@ void process_packet()
         lcd_lanes(2, time_display);
         right_end = 1;
         second = 1;
-        Serial.printf("Second client %i, time:%s", client, time_display);
+        Serial.printf("Second client %i, time:%s\n", client, time_display);
         free(time_display);
       }
 
