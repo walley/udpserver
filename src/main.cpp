@@ -218,17 +218,11 @@ void lcd_clients_info()
   lcd.setCursor(0, 0);
   lcd.printf("st:%i stm:%i.", stations, stations_max);
 
-  lcd.setCursor(0, 1);
-
   for (int i = 0; i < 8; i++) {
+    lcd.setCursor(i*2, 2);
     lcd.print(logged_in[i]);
-  }
-
-  lcd.setCursor(0, 2);
-
-  for (int i = 0; i < 8; i++) {
-    lcd.print(i);
-    lcd.print(wifi_client_ip[0]);
+    lcd.setCursor(i*2, 3);
+    lcd.print(wifi_client_ping_time[i]);
   }
 }
 
@@ -410,10 +404,12 @@ int wifi_client_login(int client, char * ip)
 {
   logged_in[client] = 1;
   lcd_clients(client, 1);
-  strcpy(wifi_client_ip[client], remote_ip_c);
+  strcpy(wifi_client_ip[client], ip);
   Serial.println(ip);
   send_packet(ip, "01");
   stations++;
+  Serial.printf("Client %i logged in\n", client);
+  return 1;
 }
 
 int wifi_wait_for_clients()
@@ -471,15 +467,18 @@ void process_packet()
   int client;
   int packetSize = udp_server.parsePacket();
 
-  if (packetSize && SCREEN_LOG) {
-    lcd.setCursor(19,1);
-    lcd.print("#");
+  if (packetSize) {
+    if (SCREEN_LOG) {
+      lcd.setCursor(19,1);
+      lcd.print("#");
+    }
 
     packet_host_info();
 
     remote_ip = udp_server.remoteIP();
     String remote_ip_s = remote_ip.toString();
-    char * remote_ip_c = remote_ip_s.c_str();
+    char remote_ip_c[20];
+    strcpy(remote_ip_c, remote_ip_s.c_str());
 
     for (int i = 0; i<3; i++) {
       if (!strcmp(remote_ip_s.c_str(), wifi_client_ip[i])) {
@@ -508,24 +507,7 @@ void process_packet()
 //////////////
 
 //device identification
-    switch (incoming_packet[0]) {
-      case 1:
-        lane = 1;
-        break;
-
-      case 2:
-        lane = 2;
-        break;
-
-      case 3:
-        lane = 3;
-        break;
-
-      case 0:
-        lane = 0;
-        break;
-    }
-
+    lane = incoming_packet[0] - '0';
 //message type
 
 // x0 - login
@@ -632,6 +614,9 @@ void lcd_display_screen()
       lcd_screen_server();
       break;
 
+    case SCREEN_LOG:
+      break;
+
 //    case SCREEN_f:
 //      lcd_screen_f();
 //      break;
@@ -688,6 +673,13 @@ void setup()
 
 }
 
+
+/*
+ *
+ *
+ */
+
+
 void loop()
 {
   int lane;     //0 none, 1 left, 2 right, 3 third
@@ -695,7 +687,7 @@ void loop()
   lcd.setCursor(19,1);
   lcd.print(".");
 
-  wifi_ping_clients();
+  //wifi_ping_clients();
 
   led_blink();
 

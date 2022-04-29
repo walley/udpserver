@@ -14,12 +14,12 @@ esp8266 server comunicates through udp
 
 ### C -> S
 
-* byte0: lane
+* byte0: device ID
 * byte1: message
 
 #### message  
 
-* x0 -login
+* x0 - login
 * x1 - end
 * x2 - pong
 * x3 -
