@@ -73,6 +73,8 @@ int right_end;
 char * time_display;
 int lcd_screen = 0xa;
 int lcd_current_screen = 0xa;
+int first = 0;
+int second = 0;
 
 int network_identification;
 
@@ -485,7 +487,8 @@ void lcd_screen_server()
 void lcd_screen_about()
 {
   lcd.setCursor(0,0);
-  lcd.println("about udpserver:");
+  lcd.print("about udpserver:");
+  lcd.setCursor(0,1);
   lcd.print("by michal grezl");
 }
 
@@ -552,13 +555,12 @@ void race_abort()
   send_broadcast("04");
   race_state = RACE_ABORTED;
   timer_on = 0;
-  lcd_race_state("aborted");
 }
 
 void process_packet()
 {
   int lane;
-  int client;
+  int client = 0;
   int packetSize = udp_server.parsePacket();
 
   if (packetSize) {
@@ -574,7 +576,7 @@ void process_packet()
     char remote_ip_c[20];
     strcpy(remote_ip_c, remote_ip_s.c_str());
 
-    for (int i = 0; i<3; i++) {
+    for (int i = 0; i < 7; i++) {
       if (!strcmp(remote_ip_s.c_str(), wifi_client_ip[i])) {
         client = i;
       }
@@ -613,21 +615,25 @@ void process_packet()
 // x1 - end race
     if (incoming_packet[1] == '1') {
       //race end
-      if (lane == 1) {
+      if (!first && !second) {
         result_left = millis() - racetime;
         time_display = millis_to_time(result_left);
         lcd_lanes(1, time_display);
-        free(time_display);
         left_end = 1;
-      } else if (lane == 2) {
+        first = 1;
+        Serial.printf("First client %i, time:%s", client, time_display);
+        free(time_display);
+      } else if (first && !second) {
         result_right = millis() - racetime;
         time_display = millis_to_time(result_left);
         lcd_lanes(2, time_display);
-        free(time_display);
         right_end = 1;
+        second = 1;
+        Serial.printf("Second client %i, time:%s", client, time_display);
+        free(time_display);
       }
 
-      if (left_end && right_end) {
+      if (first && second) {
         race_end();
       }
     }
