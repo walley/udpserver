@@ -15,7 +15,7 @@
 #define SCREEN_SERVER 0xc
 #define SCREEN_LOG 0xd
 #define SCREEN_e 0xe
-#define SCREEN_f 0xf
+#define SCREEN_ABOUT 0xf
 
 #define RACE_ENDED 0
 #define RACE_STARTED 1
@@ -72,6 +72,7 @@ int left_end;
 int right_end;
 char * time_display;
 int lcd_screen = 0xa;
+int lcd_current_screen = 0xa;
 
 int network_identification;
 
@@ -337,35 +338,6 @@ void initialize_timer()
   racetime = millis();
 }
 
-void race_start()
-{
-  list_clients();
-  send_broadcast("02");
-  race_state = RACE_STARTED;
-  Serial.println("race started");
-  initialize_timer();
-  lcd_race_state("started");
-
-}
-
-void race_end()
-{
-  list_clients();
-  send_broadcast("03");
-  race_state = RACE_ENDED;
-  timer_on = 0;
-  lcd_race_state("ended");
-}
-
-void race_abort()
-{
-  list_clients();
-  send_broadcast("04");
-  race_state = RACE_ABORTED;
-  timer_on = 0;
-  lcd_race_state("aborted");
-}
-
 void initialize_lcd()
 {
   Wire.begin();
@@ -461,6 +433,128 @@ int wifi_wait_for_clients()
   }
 }
 
+void lcd_screen_race()
+{
+  lcd.setCursor(0,3);
+
+  if (timer_on) {
+    time_display = millis_to_time(millis() - racetime);
+    lcd.print("time:");
+    lcd.print(time_display);
+    free(time_display);
+  } else {
+    lcd.print("00:00:00.000");
+  }
+
+  switch (race_state) {
+    case RACE_IDLE:
+      lcd_race_state("idle");
+      break;
+
+    case RACE_ABORTED:
+      lcd_race_state("aborted");
+      break;
+
+    case RACE_STARTED:
+      lcd_race_state("started");
+      break;
+
+    case RACE_ENDED:
+      lcd_race_state("ended");
+      break;
+  }
+}
+
+
+void lcd_screen_server()
+{
+  lcd.setCursor(0,0);
+  lcd.print("server:");
+  lcd.print(ip_to_String(*ip_addr));
+
+  lcd.setCursor(0,1);
+  lcd.print(ip_to_String(*gateway));
+
+  lcd.setCursor(0,2);
+  lcd.print(ssid);
+
+  lcd.setCursor(0,3);
+  lcd.print(network_identification);
+}
+
+void lcd_screen_about()
+{
+  lcd.setCursor(0,0);
+  lcd.println("about udpserver:");
+  lcd.print("by michal grezl");
+}
+
+void lcd_display_screen()
+{
+
+  if (lcd_screen != lcd_current_screen) {
+    lcd.clear();
+  }
+
+  switch (lcd_screen) {
+    case SCREEN_WIFI:
+      lcd_clients_info();
+      break;
+
+    case SCREEN_RACE:
+      lcd_screen_race();
+      break;
+
+    case SCREEN_SERVER:
+      lcd_screen_server();
+      break;
+
+    case SCREEN_LOG:
+      break;
+
+    case SCREEN_ABOUT:
+      lcd_screen_about();
+      break;
+
+      //    case SCREEN_f:
+      //      lcd_screen_f();
+      //      break;
+  }
+
+  lcd_current_screen = lcd_screen;
+}
+
+void race_start()
+{
+  list_clients();
+  send_broadcast("02");
+  race_state = RACE_STARTED;
+  Serial.println("race started");
+  initialize_timer();
+  lcd_screen = SCREEN_RACE;
+  lcd_display_screen();
+}
+
+void race_end()
+{
+  list_clients();
+  send_broadcast("03");
+  race_state = RACE_ENDED;
+  timer_on = 0;
+  lcd_screen = SCREEN_RACE;
+  lcd_display_screen();
+  Serial.println("race ended");
+}
+
+void race_abort()
+{
+  list_clients();
+  send_broadcast("04");
+  race_state = RACE_ABORTED;
+  timer_on = 0;
+  lcd_race_state("aborted");
+}
+
 void process_packet()
 {
   int lane;
@@ -547,81 +641,6 @@ void process_packet()
       lcd_clients_ping();
     }
   }
-}
-
-void lcd_screen_race()
-{
-  lcd.setCursor(0,3);
-
-  if (timer_on) {
-    time_display = millis_to_time(millis() - racetime);
-    lcd.print("time:");
-    lcd.print(time_display);
-    free(time_display);
-  } else {
-    lcd.print("00:00:00.000");
-  }
-
-  switch (race_state) {
-    case RACE_IDLE:
-      lcd_race_state("idle");
-      break;
-
-    case RACE_ABORTED:
-      lcd_race_state("aborted");
-      break;
-
-    case RACE_STARTED:
-      lcd_race_state("started");
-      break;
-
-    case RACE_ENDED:
-      lcd_race_state("ended");
-      break;
-  }
-}
-
-
-void lcd_screen_server()
-{
-  lcd.setCursor(0,0);
-  lcd.print("server:");
-  lcd.print(ip_to_String(*ip_addr));
-
-  lcd.setCursor(0,1);
-  lcd.print(ip_to_String(*gateway));
-
-  lcd.setCursor(0,2);
-  lcd.print(ssid);
-
-  lcd.setCursor(0,3);
-  lcd.print(network_identification);
-}
-
-void lcd_display_screen()
-{
-
-  switch (lcd_screen) {
-    case SCREEN_WIFI:
-      lcd_clients_info();
-      break;
-
-    case SCREEN_RACE:
-      lcd_screen_race();
-      break;
-
-    case SCREEN_SERVER:
-      lcd_screen_server();
-      break;
-
-    case SCREEN_LOG:
-      break;
-
-//    case SCREEN_f:
-//      lcd_screen_f();
-//      break;
-  }
-
 }
 
 /******************************************************************************/
@@ -726,7 +745,6 @@ void loop()
         race_start();
       } else if (race_state == RACE_STARTED) {
         race_abort();  //emergency stop
-        lcd_clients_info();
         delay(1000);
       }
     }
@@ -748,7 +766,6 @@ void loop()
         lcd_screen = 0xa;
       }
 
-      lcd.clear();
       Serial.println(lcd_screen);
       lcd.println(lcd_screen);
     } else if (race_state == RACE_STARTED) {
