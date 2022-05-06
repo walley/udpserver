@@ -36,7 +36,7 @@ IPAddress *subnet;
 int logged_in[8];
 char wifi_client_ip[8][20];
 unsigned long wifi_client_ping_time[8];
-int wifi_client_ping[8];
+unsigned long wifi_client_ping_rtt[8];
 
 ////
 
@@ -210,9 +210,19 @@ void lcd_clients(int lane, int state)
   Serial.println(state);
 }
 
-void lcd_clients_ping()
+void lcd_clients_ping(int client)
 {
-  lcd.setCursor(0, 0);
+  if (lcd_screen == SCREEN_WIFI) {
+    for (int i = 0; i < 8; i++) {
+      lcd.setCursor(i*2, 3);
+//      ldiv_t ldivresult;
+//      ldivresult = ldiv(wifi_client_ping_rtt[i],10);
+//      lcd.printf("%ld",ldivresult.quot);
+      lcd.print(wifi_client_ping_rtt[i]/10);
+//      Serial.println(wifi_client_ping_rtt[i]);
+//      Serial.printf("%ld.\n",ldivresult.quot);
+    }
+  }
 }
 
 void lcd_clients_info()
@@ -224,8 +234,7 @@ void lcd_clients_info()
   for (int i = 0; i < 8; i++) {
     lcd.setCursor(i*2, 2);
     lcd.print(logged_in[i]);
-    lcd.setCursor(i*2, 3);
-    lcd.print(wifi_client_ping_time[i]);
+    lcd_clients_ping(i);
   }
 }
 
@@ -363,11 +372,13 @@ int wifi_ping_clients()
 {
   int i;
 
-  for (i = 0; i<3; i++) {
-    //if (logged_in[i]) {
-    send_packet(wifi_client_ip[i],"00");
-    wifi_client_ping_time[i] = millis();
-    // main.cpp}
+  for (i = 0; i < 8; i++) {
+    if (logged_in[i]) {
+      Serial.print("pint to client ");
+      Serial.println(i);
+      wifi_client_ping_time[i] = millis();
+      send_packet(wifi_client_ip[i],"00");
+    }
   }
 
   return 3;
@@ -643,8 +654,9 @@ void process_packet()
       unsigned long ping_time = millis() - wifi_client_ping_time[client];
       Serial.print("pong:");
       Serial.println(ping_time);
-//display ping time
-      lcd_clients_ping();
+      wifi_client_ping_rtt[client] = ping_time;
+      // display ping time
+      lcd_clients_ping(client);
     }
   }
 }
@@ -656,7 +668,8 @@ void setup()
   bool wifi;
 
   for (int i = 0; i< 3; i++) {
-    wifi_client_ping[i] = 0;
+    wifi_client_ping_time[i] = 0;
+    wifi_client_ping_rtt[i] = 0;
     logged_in[i] = 0;
 
   }
@@ -711,8 +724,11 @@ void loop()
   char * time_display;
   lcd.setCursor(19,1);
   lcd.print(".");
+  unsigned int curent_time = millis();
 
-  //wifi_ping_clients();
+  if (curent_time % 5 == 0) {
+    wifi_ping_clients();
+  }
 
   led_blink();
 
